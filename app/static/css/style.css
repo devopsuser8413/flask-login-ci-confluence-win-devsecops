@@ -1,0 +1,86 @@
+/* ============================================
+   🌐 Global Styles
+   ============================================ */
+body {
+  font-family: Arial, sans-serif;
+  background-color: #f8f9fa;
+  color: #333;
+  margin: 0;
+  padding: 0;
+}
+
+/* ============================================
+   🧭 Header & Navigation
+   ============================================ */
+header {
+  background-color: #007bff;
+  color: white;
+  padding: 15px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 22px;
+}
+
+/* ============================================
+   🔘 Buttons
+   ============================================ */
+button, a.button {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  padding: 10px 20px;
+  text-decoration: none;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+button:hover, a.button:hover {
+  background-color: #0056b3;
+}
+
+/* ============================================
+   🧱 Containers & Cards
+   ============================================ */
+.container {
+  max-width: 800px;
+  margin: 40px auto;
+  background: white;
+  padding: 30px;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* ============================================
+   💬 Flash Messages
+   ============================================ */
+ul.flash-messages {
+  list-style: none;
+  padding: 0;
+}
+
+ul.flash-messages li {
+  margin: 8px 0;
+  padding: 8px;
+  border-radius: 5px;
+}
+
+li.success { background-color: #d4edda; color: #155724; }
+li.error   { background-color: #f8d7da; color: #721c24; }
+li.warning { background-color: #fff3cd; color: #856404; }
+li.info    { background-color: #d1ecf1; color: #0c5460; }
+
+/* ============================================
+   📱 Responsive Layout
+   ============================================ */
+@media (max-width: 600px) {
+  .container {
+    width: 90%;
+    padding: 20px;
+  }
+}

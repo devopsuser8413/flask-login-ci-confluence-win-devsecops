@@ -5,20 +5,9 @@ pipeline {
         timestamps()
     }
 
-    // // -------------------------------
-    // // ✅ Skill Toggle Parameters
-    // // -------------------------------
-    // parameters {
-    //     booleanParam(name: 'RUN_SAST',                defaultValue: false, description: 'Run SAST (Bandit) scan?')
-    //     booleanParam(name: 'RUN_DEP_SCAN',            defaultValue: false, description: 'Run Dependency Vulnerability Scan?')
-    //     booleanParam(name: 'RUN_PYTHON_SETUP',        defaultValue: true,  description: 'Setup Python Environment?')
-    //     booleanParam(name: 'RUN_UNIT_TESTS',          defaultValue: true,  description: 'Run Unit Tests?')
-    //     booleanParam(name: 'RUN_DOCKER_BUILD',        defaultValue: true,  description: 'Build Docker Image?')
-    //     booleanParam(name: 'RUN_DEPLOY_DAST',         defaultValue: true,  description: 'Deploy for DAST Scan?')
-    //     booleanParam(name: 'RUN_DAST',                defaultValue: true,  description: 'Run OWASP ZAP DAST Scan?')
-    //     booleanParam(name: 'RUN_REPORT_PUBLISH',      defaultValue: true,  description: 'Generate & Publish Reports?')
-    //     booleanParam(name: 'RUN_EMAIL_NOTIFICATION',  defaultValue: true,  description: 'Send Email Notification?')
-    // }
+    tools {
+        python 'Python3'
+    }
 
     // -------------------------------
     // Environment Variables
@@ -45,9 +34,10 @@ pipeline {
         VENV_PATH     = '.venv'
         DOCKER_IMAGE  = 'devsecops-demo:latest'
 
-        PYTHONUTF8 = '1'
-        PYTHONIOENCODING = 'utf-8'
-        PYTHONLEGACYWINDOWSSTDIO = '1'
+        PYTHONUTF8                  = '1'
+        PYTHONIOENCODING            = 'utf-8'
+        PYTHONLEGACYWINDOWSSTDIO    = '1'
+        PIP_CACHE_DIR               = "${WORKSPACE}\\pip_cache"
     }
 
     // -------------------------------
@@ -81,25 +71,26 @@ pipeline {
             }
         }
 
-        stage('Setup Python Environment') {
-            //when { expression { return params.RUN_PYTHON_SETUP } }
-            steps {
-                echo '🐍 Setting up Python virtual environment...'
-                bat '''
-                    @echo off
-                    if not exist "%VENV_PATH%" (
-                        python -m venv %VENV_PATH%
-                    )
-                    %VENV_PATH%\\Scripts\\python.exe -m pip install --upgrade pip
-                    %VENV_PATH%\\Scripts\\pip.exe install -r requirements.txt
-                    %VENV_PATH%\\Scripts\\pip.exe install bandit safety typer click pytest pytest-html fpdf beautifulsoup4
-                '''
-                echo '✅ Python environment ready.'
+        stages {
+            stage('Setup Python Environment') {
+                when { expression { return params.RUN_PYTHON_SETUP } }
+                steps {
+                    echo '🐍 Setting up cached Python environment...'
+                    bat '''
+                        @echo off
+                        if not exist "%PIP_CACHE_DIR%" mkdir "%PIP_CACHE_DIR%"
+                        if not exist "%VENV_PATH%" (
+                            python -m venv %VENV_PATH%
+                        )
+                        %VENV_PATH%\\Scripts\\python.exe -m pip install --upgrade pip
+                        %VENV_PATH%\\Scripts\\pip.exe install --cache-dir "%PIP_CACHE_DIR%" -r requirements.txt
+                        %VENV_PATH%\\Scripts\\pip.exe install --cache-dir "%PIP_CACHE_DIR%" bandit safety typer click pytest pytest-html fpdf beautifulsoup4 requests
+                    '''
+                }
             }
         }
 
         stage('SAST - Static Code Analysis') {
-            //when { expression { return params.RUN_SAST } }
             steps {
                 echo '🔍 Running Bandit for static code analysis...'
                 bat """
@@ -117,8 +108,7 @@ pipeline {
         }
 
         stage('Dependency Vulnerability Scan') {
-           // when { expression { return params.RUN_DEP_SCAN } }
-            steps {
+          steps {
                 echo "🧩 Checking dependencies for known vulnerabilities..."
                 bat '''
                     if not exist report mkdir report
@@ -134,8 +124,7 @@ pipeline {
         }
 
         stage('Run Unit Tests') {
-           // when { expression { return params.RUN_UNIT_TESTS } }
-            steps {
+          steps {
                 echo '🧪 Running unit tests with pytest...'
                 bat """
                     @echo off
@@ -169,14 +158,14 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                echo '🐳 Building Docker image from /app directory...'
+                echo '🐳 Building Docker image from root directory...'
                 bat """
                     @echo off
-                    if exist app\\Dockerfile (
-                        echo 🐋 Found Dockerfile in /app. Building image...
-                        docker build -t %DOCKER_IMAGE% -f app\\Dockerfile .
+                    if exist Dockerfile (
+                        echo 🐋 Found Dockerfile in project root. Building image...
+                        docker build -t %DOCKER_IMAGE% -f Dockerfile .
                     ) else (
-                        echo ❌ Dockerfile not found under /app
+                        echo ❌ Dockerfile not found in root directory!
                         exit /b 1
                     )
                 """
@@ -252,8 +241,7 @@ pipeline {
         }
 
         stage('Generate & Publish Reports') {
-           // when { expression { return params.RUN_REPORT_PUBLISH } }
-            steps {
+           steps {
                 echo '📊 Generating and publishing reports to Confluence...'
                 bat '''
                     %VENV_PATH%\\Scripts\\python.exe generate_report.py
@@ -271,8 +259,7 @@ pipeline {
         }
 
         stage('Send Email Notification') {
-           // when { expression { return params.RUN_EMAIL_NOTIFICATION } }
-            steps {
+          steps {
                 echo '📧 Sending consolidated DevSecOps report...'
                 bat '''
                     %VENV_PATH%\\Scripts\\python.exe send_report_email.py

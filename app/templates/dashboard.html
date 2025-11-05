@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
+  <meta http-equiv="X-Frame-Options" content="DENY">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f0f2f5;
+      margin: 0;
+      padding: 0;
+      color: #333;
+    }
+    header {
+      background-color: #007bff;
+      color: white;
+      padding: 15px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 22px;
+    }
+    main {
+      padding: 30px;
+      text-align: center;
+    }
+    .welcome {
+      font-size: 20px;
+      margin-bottom: 20px;
+    }
+    a.logout-btn {
+      background-color: #dc3545;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 5px;
+      text-decoration: none;
+      font-weight: bold;
+    }
+    a.logout-btn:hover {
+      background-color: #b52b37;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>🔐 Secure Dashboard</h1>
+    <a class="logout-btn" href="{{ url_for('logout') }}">Logout</a>
+  </header>
+
+  <main>
+    <div class="welcome">
+      <p>Welcome, <strong>{{ username }}</strong> 👋</p>
+      <p>Your secure session is active. You can explore protected pages from here.</p>
+    </div>
+
+    <section>
+      <h3>Security Overview</h3>
+      <p>✅ Session is encrypted and cookie-secured (HTTPOnly, SameSite=Lax)</p>
+      <p>✅ Security headers are enforced by Flask</p>
+      <p>✅ Application running on {{ request.host }}</p>
+    </section>
+  </main>
+</body>
+</html>

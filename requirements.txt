@@ -35,3 +35,9 @@ certifi>=2023.7.22
 idna>=3.7
 charset-normalizer>=3.3.2
 urllib3>=2.2.3
+smtplib3==0.2.0
+
+# ========================================
+# 🧰 Optional: JSON and date/time utilities
+# ========================================
+python-dateutil==2.9.0
