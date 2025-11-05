@@ -205,30 +205,51 @@ pipeline {
         }
 
         stage('Deploy for DAST Scan') {
-            when { expression { return params.RUN_DEPLOY_DAST } }
             steps {
                 echo '🚀 Deploying temporary container for OWASP ZAP DAST...'
                 bat '''
-                    docker run -d -p 5000:5000 --name flask_dast_test %DOCKER_IMAGE%
-                    ping -n 16 127.0.0.1 >nul
+                @echo off
+                REM 🧹 Clean up any old container before starting a new one
+                docker rm -f flask_dast_test >nul 2>&1
+
+                REM 🚀 Run a fresh container for DAST scan
+                docker run -d -p 5000:5000 --name flask_dast_test %DOCKER_IMAGE%
+
+                REM ⏱️ Wait 15 seconds for the app to start
+                ping -n 16 127.0.0.1 >nul
                 '''
             }
         }
 
         stage('DAST - OWASP ZAP Scan') {
-            when { expression { return params.RUN_DAST } }
             steps {
                 echo '🕵️ Running OWASP ZAP baseline scan...'
                 bat '''
-                    docker run --rm -v %CD%\\report:/zap/wrk owasp/zap2docker-stable zap-baseline.py -t http://localhost:5000 -r zap_dast_report.html || exit /b 0
+                @echo off
+                if not exist report mkdir report
+
+                REM ✅ Ensure previous test container is stopped/removed before running scan
+                docker rm -f flask_dast_test >nul 2>&1
+
+                REM ✅ Run OWASP ZAP using the new GHCR image
+                docker run --rm ^
+                    -v "%CD%\\report:/zap/wrk" ^
+                    ghcr.io/zaproxy/zaproxy:stable zap-baseline.py ^
+                    -t http://host.docker.internal:5000 ^
+                    -r zap_dast_report.html || exit /b 0
+
+                REM ✅ Show report files for verification
+                dir report
                 '''
                 echo '✅ OWASP ZAP DAST scan completed.'
             }
             post {
                 always {
-                    archiveArtifacts artifacts: 'report/zap_dast_report.html', fingerprint: true
-                    echo '🧹 Stopping and removing DAST container...'
-                    bat 'docker stop flask_dast_test && docker rm flask_dast_test'
+                echo '📦 Archiving ZAP DAST report...'
+                archiveArtifacts artifacts: 'report/zap_dast_report.html', allowEmptyArchive: true
+
+                echo '🧹 Cleaning up DAST test container...'
+                bat 'docker rm -f flask_dast_test >nul 2>&1'
                 }
             }
         }
