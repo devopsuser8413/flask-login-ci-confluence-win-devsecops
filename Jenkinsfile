@@ -30,9 +30,6 @@ pipeline {
         VENV_PATH     = '.venv'
         DOCKER_IMAGE  = 'devsecops-demo:latest'
 
-        // ============================
-        // 🧩 UTF-8 + Python Encoding Fix
-        // ============================
         PYTHONUTF8 = '1'
         PYTHONIOENCODING = 'utf-8'
         PYTHONLEGACYWINDOWSSTDIO = '1'
@@ -150,17 +147,33 @@ pipeline {
                     @echo off
                     where docker >nul 2>nul
                     if %ERRORLEVEL% NEQ 0 (
-                        echo ⚙️ Docker not found. Installing Docker Desktop...
-                        powershell -Command "Invoke-WebRequest -Uri https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe -OutFile DockerInstaller.exe"
-                        start /wait DockerInstaller.exe install --quiet
-                        setx PATH "%PATH%;C:\\Program Files\\Docker\\Docker\\resources\\bin"
-                        echo ✅ Docker installed and added to PATH. Restarting Jenkins service...
-                        net stop jenkins
-                        net start jenkins
+                        echo ⚙️ Docker not found. Installing prerequisites...
+                        REM === Install Chocolatey if missing ===
+                        where choco >nul 2>nul
+                        if %ERRORLEVEL% NEQ 0 (
+                            echo 📦 Installing Chocolatey...
+                            powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command ^
+                              "Set-ExecutionPolicy Bypass -Scope Process -Force; ^
+                              [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; ^
+                              iwr https://community.chocolatey.org/install.ps1 -UseBasicParsing | iex"
+                        ) else (
+                            echo ✅ Chocolatey already installed.
+                        )
+
+                        REM === Install Docker CLI + Engine ===
+                        echo 🐳 Installing Docker using Chocolatey...
+                        choco install docker-cli -y --no-progress
+                        choco install docker-engine -y --no-progress
+
+                        REM === Update PATH ===
+                        setx PATH "%PATH%;C:\\Program Files\\Docker;C:\\ProgramData\\chocolatey\\bin"
+                        echo ✅ Docker installed and added to PATH.
                     ) else (
                         echo ✅ Docker already installed.
                     )
-                    docker --version
+
+                    REM === Verify Docker ===
+                    docker --version || echo ❌ Docker not found even after installation!
                 '''
             }
         }
