@@ -11,7 +11,7 @@ pipeline {
     parameters {
         booleanParam(name: 'RUN_SAST',                defaultValue: false, description: 'Run SAST (Bandit) scan?')
         booleanParam(name: 'RUN_DEP_SCAN',            defaultValue: false, description: 'Run Dependency Vulnerability Scan?')
-        booleanParam(name: 'RUN_PYTHON_SETUP',        defaultValue: false,  description: 'Setup Python Environment?')
+        booleanParam(name: 'RUN_PYTHON_SETUP',        defaultValue: true,  description: 'Setup Python Environment?')
         booleanParam(name: 'RUN_UNIT_TESTS',          defaultValue: true,  description: 'Run Unit Tests?')
         booleanParam(name: 'RUN_DOCKER_BUILD',        defaultValue: true,  description: 'Build Docker Image?')
         booleanParam(name: 'RUN_DEPLOY_DAST',         defaultValue: true,  description: 'Deploy for DAST Scan?')
