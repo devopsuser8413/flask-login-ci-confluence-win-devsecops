@@ -210,7 +210,7 @@ pipeline {
                 echo '🚀 Deploying temporary container for OWASP ZAP DAST...'
                 bat '''
                     docker run -d -p 5000:5000 --name flask_dast_test %DOCKER_IMAGE%
-                    timeout /t 15
+                    ping -n 16 127.0.0.1 >nul
                 '''
             }
         }
