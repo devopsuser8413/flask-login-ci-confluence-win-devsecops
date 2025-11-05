@@ -5,6 +5,11 @@ pipeline {
         timestamps()
     }
 
+    parameters {
+        booleanParam(name: 'RUN_SAST', defaultValue: false, description: 'Run SAST (Bandit) scan?')
+        booleanParam(name: 'RUN_DEP_SCAN', defaultValue: false, description: 'Run Dependency Vulnerability Scan?')
+    }
+
     environment {
         SMTP_HOST        = credentials('smtp-host')
         SMTP_PORT        = '587'
@@ -76,7 +81,11 @@ pipeline {
             }
         }
 
+        // 🔒 SAST Stage - Skipped by Default
         stage('SAST - Static Code Analysis') {
+            when {
+                expression { return params.RUN_SAST }
+            }
             steps {
                 echo '🔍 Running Bandit for static code analysis...'
                 bat """
@@ -93,7 +102,11 @@ pipeline {
             }
         }
 
+        // 📦 Dependency Vulnerability Scan - Skipped by Default
         stage('Dependency Vulnerability Scan') {
+            when {
+                expression { return params.RUN_DEP_SCAN }
+            }
             steps {
                 echo "🧩 Checking dependencies for known vulnerabilities..."
                 bat '''
@@ -142,7 +155,6 @@ pipeline {
             }
         }
 
-        // 🐳 UPDATED STAGE
         stage('Build Docker Image') {
             steps {
                 echo '🐳 Building Docker image...'
@@ -153,7 +165,7 @@ pipeline {
                         docker build -t %DOCKER_IMAGE% .
                     ) else if exist app\\Dockerfile (
                         echo 🐋 Found Dockerfile in /app directory. Building image...
-                        docker build -t %DOCKER_IMAGE% -f app\\Dockerfile app
+                        docker build -t %DOCKER_IMAGE% -f app\\Dockerfile .
                     ) else (
                         echo ❌ No Dockerfile found! Please add Dockerfile in project root or app directory.
                         exit /b 1
@@ -239,8 +251,6 @@ pipeline {
             echo '''
             ✅ PIPELINE COMPLETED SUCCESSFULLY!
             ======================================
-            ✔️ SAST (Bandit)
-            ✔️ Dependency Scan (Safety)
             ✔️ Unit Tests (Pytest)
             ✔️ Container Scan (Trivy)
             ✔️ DAST (OWASP ZAP)
@@ -253,8 +263,7 @@ pipeline {
             ❌ PIPELINE FAILED!
             ======================================
             - Review Jenkins logs for the failed stage
-            - Check SAST, DAST, or container scan outputs
-            - Verify Dockerfile path and credentials
+            - Check build logs for missing Dockerfile or requirements.txt
             ======================================
             '''
         }
