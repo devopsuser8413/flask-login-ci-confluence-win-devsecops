@@ -82,7 +82,7 @@ pipeline {
                     )
                     %VENV_PATH%\\Scripts\\python.exe -m pip install --upgrade pip
                     %VENV_PATH%\\Scripts\\pip.exe install -r requirements.txt
-                    %VENV_PATH%\\Scripts\\pip.exe install bandit safety pytest pytest-html
+                    %VENV_PATH%\\Scripts\\pip.exe install bandit safety==2.3.5 typer==0.7.0 click==8.1.7 pytest pytest-html
                 '''
                 echo '✅ Python environment ready.'
             }
@@ -108,21 +108,20 @@ pipeline {
 
         // -------------------------------
         stage('Dependency Vulnerability Scan') {
-        steps {
-            echo "🧩 Checking dependencies for known vulnerabilities..."
-            bat '''
-            if not exist report mkdir report
-            %VENV_PATH%\\Scripts\\pip.exe install --upgrade typer==0.9.0 safety==3.2.0
-            %VENV_PATH%\\Scripts\\python.exe -m safety check --full-report > report\\dependency_vuln.txt || exit 0
-            '''
-        }
-        post {
-            always {
-            archiveArtifacts artifacts: 'report/dependency_vuln.txt', allowEmptyArchive: true
+            steps {
+                echo "🧩 Checking dependencies for known vulnerabilities..."
+                bat '''
+                    if not exist report mkdir report
+                    %VENV_PATH%\\Scripts\\pip.exe install --upgrade safety==2.3.5 typer==0.7.0 click==8.1.7
+                    %VENV_PATH%\\Scripts\\safety.exe check --full-report > report\\dependency_vuln.txt || exit 0
+                '''
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'report/dependency_vuln.txt', allowEmptyArchive: true
+                }
             }
         }
-        }
-
 
         // -------------------------------
         stage('Run Unit Tests') {
@@ -140,6 +139,29 @@ pipeline {
                 always {
                     archiveArtifacts artifacts: 'report/report.html', fingerprint: true
                 }
+            }
+        }
+
+        // -------------------------------
+        stage('Install Docker (if missing)') {
+            steps {
+                echo '🐋 Checking and installing Docker if not present...'
+                bat '''
+                    @echo off
+                    where docker >nul 2>nul
+                    if %ERRORLEVEL% NEQ 0 (
+                        echo ⚙️ Docker not found. Installing Docker Desktop...
+                        powershell -Command "Invoke-WebRequest -Uri https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe -OutFile DockerInstaller.exe"
+                        start /wait DockerInstaller.exe install --quiet
+                        setx PATH "%PATH%;C:\\Program Files\\Docker\\Docker\\resources\\bin"
+                        echo ✅ Docker installed and added to PATH. Restarting Jenkins service...
+                        net stop jenkins
+                        net start jenkins
+                    ) else (
+                        echo ✅ Docker already installed.
+                    )
+                    docker --version
+                '''
             }
         }
 

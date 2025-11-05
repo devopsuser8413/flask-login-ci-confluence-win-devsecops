@@ -1,247 +1,327 @@
-# 🔐 DevSecOps CI/CD Pipeline --- Flask Test Automation & Security Reporting
+# 🔐 Flask DevSecOps CI/CD Pipeline — End-to-End Setup Guide
 
-A complete **DevSecOps-driven Jenkins CI/CD pipeline** integrating: -
-Automated testing (Pytest + HTML/PDF reports) - Static code analysis
-(Bandit) - Dependency scanning (Safety) - Container security scanning
-(Trivy) - Dynamic application testing (OWASP ZAP) - Secure email
-notifications - Report publishing to **Atlassian Confluence**
+A complete **DevSecOps-driven Jenkins CI/CD pipeline** integrating:
+- Flask web app with authentication
+- Automated testing (Pytest + HTML/PDF reporting)
+- Static code analysis (Bandit)
+- Dependency vulnerability scanning (Safety)
+- Container security scanning (Trivy)
+- Dynamic security testing (OWASP ZAP)
+- Email and Confluence report publishing
 
-------------------------------------------------------------------------
+---
 
-## 🧩 1. Prerequisites & Software Installation
+## 🧩 1. System Requirements & Software Installation
 
-### ☕ 1.1 Install Java
+### ☕ 1.1 Install Java (Jenkins Dependency)
 
-Jenkins requires Java (JDK 17 or newer):
+#### Step 1: Download Java JDK 17+
+🔗 [Oracle JDK Downloads](https://www.oracle.com/java/technologies/downloads/)
 
-``` bash
+#### Step 2: Install and Verify
+```bash
 java -version
 ```
 
-Set the `JAVA_HOME` environment variable:
+#### Step 3: Set Environment Variable (Windows)
+**Option A — GUI Method:**
+1. Press `Win + R` → type `sysdm.cpl` → Enter.
+2. Go to **Advanced → Environment Variables**.
+3. Add a new System variable:
+   - **Variable name:** `JAVA_HOME`
+   - **Value:** `C:\Program Files\Java\jdk-17`
+4. Edit `Path` → Add:
+   ```
+   %JAVA_HOME%\bin
+   ```
 
-``` powershell
+**Option B — PowerShell (Admin):**
+```powershell
 setx JAVA_HOME "C:\Program Files\Java\jdk-17"
 setx PATH "%PATH%;%JAVA_HOME%\bin"
 ```
 
-### 🐍 1.2 Install Python 3
+✅ **Verify:**
+```bash
+echo %JAVA_HOME%
+java -version
+```
 
-Download and install Python ≥3.10 from
-[python.org](https://www.python.org/downloads/). ✅ Ensure **"Add Python
-to PATH"** is selected during installation.
+---
 
-Verify:
+### 🐍 1.2 Install Python 3.10+
 
-``` bash
+#### Step 1: Download
+🔗 [Python Official Downloads](https://www.python.org/downloads/)
+
+During installation, check:
+✅ “Add Python to PATH”.
+
+#### Step 2: Verify Installation
+```bash
 python --version
 pip --version
 ```
 
-### ⚙️ 1.3 Install Jenkins LTS
-
-Download and install the latest **Jenkins LTS** for Windows or Linux:\
-👉 <https://www.jenkins.io/download/>
-
-Start Jenkins and open:
-
-``` bash
-http://localhost:8080
+#### Step 3: If PATH not set
+```powershell
+setx PATH "%PATH%;C:\Users\<username>\AppData\Local\Programs\Python\Python310;C:\Users\<username>\AppData\Local\Programs\Python\Python310\Scripts" /M
 ```
 
-Unlock Jenkins using:
+---
 
-    C:\ProgramData\Jenkins\.jenkins\secrets\initialAdminPassword
+### ⚙️ 1.3 Install Jenkins LTS
 
-------------------------------------------------------------------------
+#### Step 1: Download Jenkins
+🔗 [Jenkins LTS for Windows/Linux](https://www.jenkins.io/download/)
 
-## ⚙️ 2. Jenkins UI & Plugin Setup
+#### Step 2: Installation Options
+- **Windows Service**: Run the installer and start automatically.
+- **Manual (CLI)**:
+  ```bash
+  java -jar jenkins.war
+  ```
 
-Install these plugins from **Manage Jenkins → Manage Plugins**:
+#### Step 3: Access Jenkins
+👉 [http://localhost:8080](http://localhost:8080)
 
-  Category             Plugin
-  -------------------- ---------------------------------
-  Source Control       GitHub Plugin
-  Build Management     Pipeline Plugin
-  Email Notification   Email Extension Plugin
-  Python               ShiningPanda / Python Plugin
-  Reporting            HTML Publisher Plugin
-  Security             Warnings Next Generation Plugin
-  Documentation        Confluence Publisher Plugin
+#### Step 4: Retrieve Initial Password
+```
+C:\ProgramData\Jenkins\.jenkins\secrets\initialAdminPassword
+```
+
+Copy and paste into Jenkins unlock screen.
+
+#### Step 5: Install Suggested Plugins
+Choose “Install Suggested Plugins” during initial setup.
+
+---
+
+## 🧰 2. Jenkins Configuration
+
+### 🧩 2.1 Install Required Plugins
+Go to **Manage Jenkins → Manage Plugins → Available tab**, and install:
+
+| Category | Plugin Name |
+|-----------|--------------|
+| Source Control | GitHub Plugin |
+| Build Management | Pipeline Plugin |
+| Email | Email Extension Plugin |
+| Python | ShiningPanda or Python Plugin |
+| Security | Warnings Next Generation Plugin |
+| Documentation | Confluence Publisher Plugin |
+| Visualization | HTML Publisher Plugin |
 
 Restart Jenkins after installation.
 
-------------------------------------------------------------------------
+---
 
-## 🔑 3. Jenkins Credentials Configuration
+### 🔑 2.2 Configure Jenkins Credentials
 
-  ----------------------------------------------------------------------------------------------------
-  ID                     Description                         Example
-  ---------------------- ----------------------------------- -----------------------------------------
-  `github-credentials`   GitHub PAT or username/token        `<username> / ghp_xxxxxxxxxx`
+Go to: **Manage Jenkins → Credentials → Global → Add Credentials**
 
-  `smtp-host`            SMTP Server                         `smtp.gmail.com`
+| ID | Description | Example |
+|----|--------------|----------|
+| `github-credentials` | GitHub Personal Access Token | `<username> / ghp_xxxxxxx` |
+| `smtp-user` | Email Username | `noreply@company.com` |
+| `smtp-pass` | Email App Password | `abcdxyz123` |
+| `confluence-user` | Atlassian Account Email | `your.email@company.com` |
+| `confluence-token` | Confluence API Token | `ATAT-xxxxxx` |
+| `confluence-base` | Confluence Base URL | `https://yourcompany.atlassian.net/wiki` |
 
-  `smtp-user`            Sender Email                        `noreply@yourdomain.com`
+---
 
-  `smtp-pass`            App Password                        `abcd1234xyz`
+## 📘 3. Confluence Setup
 
-  `confluence-user`      Atlassian User                      `admin@yourdomain.com`
+### 3.1 Create Confluence Space
+1. Login to Confluence → **Spaces → Create Space**
+2. Select **Blank Space** or **Documentation Space**
+3. Provide a **space key** (e.g., `DEMO`)
+4. Assign permissions to your Jenkins user (view/edit).
 
-  `confluence-token`     API Token                           `ATAT-xxxxxx-xxxxxx`
+### 3.2 Generate Confluence API Token
+1. Go to [https://id.atlassian.com/manage/api-tokens](https://id.atlassian.com/manage/api-tokens)
+2. Click **Create API Token**
+3. Copy token → store securely in Jenkins credentials (`confluence-token`).
 
-  `confluence-base`      Base URL                            `https://yourdomain.atlassian.net/wiki`
-  ----------------------------------------------------------------------------------------------------
+### 3.3 Verify Permissions
+Ensure the Confluence user has:
+- **View** and **Add Pages** permissions in the target space.
+- Access to the Confluence REST API.
 
-------------------------------------------------------------------------
+---
 
-## 🧪 4. Repository Structure
+## 🔐 4. GitHub Integration
 
-    .
-    ├── app.py
-    ├── test_app.py
-    ├── templates/
-    │   ├── login.html
-    │   └── dashboard.html
-    ├── report/
-    ├── requirements.txt
-    ├── generate_report.py
-    ├── send_report_email.py
-    ├── publish_report_confluence.py
-    └── Jenkinsfile
+### 4.1 Create GitHub Personal Access Token
+1. Go to: **Settings → Developer Settings → Personal Access Tokens → Tokens (classic)**  
+2. Click **Generate new token**:
+   - Select scopes: `repo`, `workflow`, `admin:repo_hook`
+3. Copy the token.
+4. Add to Jenkins credentials as `github-credentials`.
 
-------------------------------------------------------------------------
+### 4.2 Repository Setup
+Ensure your GitHub repo has:
+- Jenkinsfile at root
+- Requirements.txt
+- Flask app and tests committed
 
-## ⚙️ 5. Jenkins Pipeline Overview
+---
 
-  Stage                            Description
-  -------------------------------- -----------------------------------
-  **Checkout GitHub**              Clone repository
-  **Setup Python**                 Create virtual environment
-  **Install Dependencies**         Install all required libraries
-  **Run Tests (Pytest)**           Execute automated tests
-  **Run Bandit (SAST)**            Static analysis on source code
-  **Run Safety (Dependencies)**    Check vulnerable dependencies
-  **Run Trivy (Container Scan)**   Scan Docker image
-  **Run OWASP ZAP (DAST)**         Perform dynamic scan
-  **Generate Report**              Combine all results into HTML/PDF
-  **Send Email**                   Notify results to stakeholders
-  **Publish to Confluence**        Upload HTML/PDF and summary page
+## ✉️ 5. App Email Setup (SMTP)
 
-------------------------------------------------------------------------
+If using Gmail:
+1. Enable **2-Step Verification**
+2. Go to **Manage Google Account → Security → App Passwords**
+3. Generate password → name as “Jenkins CI”
+4. Save generated 16-character password.
+5. Use as `SMTP_PASS` in Jenkins credentials.
 
-## 🧾 Example Jenkinsfile Snippet
+---
 
-``` groovy
-pipeline {
-  agent any
-  options { timestamps() }
+## 🧱 6. Project Architecture
 
-  environment {
-    SMTP_HOST = credentials('smtp-host')
-    SMTP_USER = credentials('smtp-user')
-    SMTP_PASS = credentials('smtp-pass')
-    REPORT_FROM = credentials('sender-email')
-    REPORT_TO = credentials('receiver-email')
-    CONFLUENCE_BASE = credentials('confluence-base')
-    CONFLUENCE_USER = credentials('confluence-user')
-    CONFLUENCE_TOKEN = credentials('confluence-token')
-    CONFLUENCE_SPACE = 'DEMO'
-  }
-
-  stages {
-    stage('Checkout') {
-      steps {
-        git credentialsId: 'github-credentials', url: 'https://github.com/devopsuser/flask-devsecops-pipeline.git'
-      }
-    }
-
-    stage('Setup & Install') {
-      steps {
-        bat '''
-          python -m venv .venv
-          .venv\Scripts\pip install --upgrade pip
-          .venv\Scripts\pip install -r requirements.txt
-        '''
-      }
-    }
-
-    stage('Run Tests') {
-      steps {
-        bat '.venv\Scripts\pytest --html=report/report.html --self-contained-html || exit 0'
-      }
-    }
-
-    stage('Security Scans') {
-      steps {
-        bat '''
-          .venv\Scripts\bandit -r app.py -f html -o report/bandit_report.html || exit 0
-          .venv\Scripts\safety check --full-report > report/dependency_vuln.txt || exit 0
-        '''
-      }
-    }
-
-    stage('Generate Reports & Publish') {
-      steps {
-        bat '''
-          .venv\Scripts\python generate_report.py
-          .venv\Scripts\python send_report_email.py
-          .venv\Scripts\python publish_report_confluence.py
-        '''
-      }
-    }
-  }
-
-  post {
-    success {
-      echo '✅ Pipeline completed successfully.'
-    }
-    failure {
-      echo '❌ Pipeline failed. Check Jenkins logs and Confluence report.'
-    }
-  }
-}
+```
+flask-login-ci-confluence-win-devsecops/
+├── app.py
+├── test_app.py
+├── requirements.txt
+├── templates/
+│   ├── login.html
+│   └── dashboard.html
+├── report/
+│   ├── report.html
+│   ├── bandit_report.html
+│   ├── dependency_vuln.txt
+│   └── test_result_report.pdf
+├── publish_report_confluence.py
+├── send_report_email.py
+├── generate_report.py
+├── Dockerfile
+├── Jenkinsfile
+└── README.md
 ```
 
-------------------------------------------------------------------------
+---
 
-## 🧱 6. DevSecOps Toolchain Summary
+## 🧪 7. Jenkins Pipeline Setup
 
-  Category                  Tool                     Purpose
-  ------------------------- ------------------------ -------------------------------
-  SCM                       GitHub                   Source control
-  CI/CD                     Jenkins                  Pipeline orchestration
-  App Framework             Flask                    Sample web app
-  Testing                   Pytest + pytest-html     Automated testing
-  Reporting                 ReportLab + Matplotlib   Enhanced visual reports
-  Static Security (SAST)    Bandit                   Code analysis
-  Dependency Scanning       Safety                   Library vulnerability checks
-  Container Scanning        Trivy                    Image vulnerability detection
-  Dynamic Security (DAST)   OWASP ZAP                Runtime vulnerability testing
-  Notifications             SMTP                     Email alerts
-  Documentation             Confluence               Publish reports and summaries
+### Create a New Pipeline Job
+1. Open Jenkins → **New Item → Pipeline**
+2. Name: `Flask-DevSecOps-Pipeline`
+3. Choose: **Pipeline from SCM**
+4. Set SCM: `Git`
+   - Repository URL: `https://github.com/devopsuser8413/flask-login-ci-confluence-win-devsecops.git`
+   - Credentials: `github-credentials`
+5. Script Path: `Jenkinsfile`
 
-------------------------------------------------------------------------
+---
 
-## 🔄 7. CI/CD Workflow Summary
+## 🧩 8. Jenkinsfile Overview
 
-1.  Developer pushes code to GitHub.\
-2.  Jenkins automatically triggers via webhook.\
-3.  Code is tested, analyzed, and scanned.\
-4.  Reports are generated (HTML + PDF).\
-5.  Email with summary + attachments is sent.\
-6.  Confluence is updated with results and risk status.
+Each stage represents a DevSecOps layer:
 
-✅ Final Outcome: **Unified build, test, and security visibility** for
-your DevSecOps workflow.
+| Stage | Tool | Purpose |
+|--------|------|----------|
+| Checkout GitHub | Git | Pull latest code |
+| Setup Python Env | pip/venv | Install dependencies |
+| SAST | Bandit | Scan for insecure code |
+| Dependency Scan | Safety | Check vulnerable packages |
+| Unit Tests | Pytest | Run test cases |
+| Docker Build | Docker | Build app container |
+| Container Scan | Trivy | Scan for CVEs in image |
+| DAST | OWASP ZAP | Runtime scan of app |
+| Reports | ReportLab + Confluence API | Publish results |
+| Notification | SMTP | Email summary |
 
-------------------------------------------------------------------------
+---
 
-## 📜 Maintainer Info
+## 🧠 9. Detailed Explanation of Jenkins Stages
 
-**Maintainer:** Your Name\
-**Team / Department:** DevSecOps Engineering\
-**Organization:** Your Company\
-**Contact:** you@company.com
+### **Stage 1: Checkout GitHub**
+- Uses Jenkins `git` plugin.
+- Fetches main branch source code.
 
-------------------------------------------------------------------------
+### **Stage 2: Setup Python Environment**
+- Creates `.venv` folder.
+- Installs packages from `requirements.txt`.
+
+### **Stage 3: Static Code Analysis (SAST)**
+- Runs `bandit -r .`.
+- Generates `report/bandit_report.html`.
+
+### **Stage 4: Dependency Scan (Safety)**
+- Runs `python -m safety check`.
+- Outputs `report/dependency_vuln.txt`.
+
+### **Stage 5: Run Unit Tests**
+- Executes `pytest --html=report/report.html`.
+- Produces HTML report for test results.
+
+### **Stage 6: Build Docker Image**
+- Builds image `flask-ci-app:latest`.
+- Pushes to registry if configured.
+
+### **Stage 7: Container Security Scan (Trivy)**
+- Scans Docker image for vulnerabilities.
+- Exports results to `report/trivy_report.txt`.
+
+### **Stage 8: DAST - OWASP ZAP Scan**
+- Runs dynamic web app scan.
+- Detects OWASP Top 10 vulnerabilities.
+
+### **Stage 9: Generate & Publish Reports**
+- Consolidates Bandit, Safety, and Pytest outputs.
+- Uploads to Confluence using API.
+
+### **Stage 10: Send Email Notification**
+- Uses SMTP credentials to email report summary.
+
+---
+
+## 📄 10. Jenkinsfile Sample
+
+(See previous code block in the earlier message for full Groovy pipeline content.)
+
+---
+
+## 📈 11. Outputs Generated
+
+| File | Description |
+|------|--------------|
+| `report/report.html` | Pytest test results |
+| `report/bandit_report.html` | Static code analysis report |
+| `report/dependency_vuln.txt` | Dependency vulnerability summary |
+| `report/test_result_report.pdf` | Final summary report |
+| Confluence Page | Auto-generated report page |
+| Email | Summary with links and attachments |
+
+---
+
+## 🧠 12. Security Layers Implemented
+
+| Layer | Tool | Description |
+|--------|------|--------------|
+| **SAST** | Bandit | Static Python code scan |
+| **DAST** | OWASP ZAP | Dynamic runtime scan |
+| **Dependency** | Safety | Python package CVE detection |
+| **Container** | Trivy | Docker image vulnerability scan |
+| **Secrets** | Jenkins Credentials | Encrypted storage of sensitive data |
+
+---
+
+## 📘 13. References
+- Jenkins: [https://www.jenkins.io](https://www.jenkins.io)
+- Bandit: [https://bandit.readthedocs.io](https://bandit.readthedocs.io)
+- Safety: [https://pyup.io/safety](https://pyup.io/safety)
+- Trivy: [https://aquasecurity.github.io/trivy](https://aquasecurity.github.io/trivy)
+- Confluence REST API: [https://developer.atlassian.com/cloud/confluence/rest](https://developer.atlassian.com/cloud/confluence/rest)
+
+---
+
+## 🏁 Maintainer Info
+
+**Author:** Your Name  
+**Department:** DevSecOps Engineering  
+**Organization:** Your Company  
+**Email:** you@company.com  
