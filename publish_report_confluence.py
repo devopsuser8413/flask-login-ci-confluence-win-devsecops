@@ -124,7 +124,84 @@ def create_confluence_page(title, html_body):
 
 
 def upload_attachment(page_id, file_path):
-    """Upload report attachments"""
+    """Upload report attachments to Confluence"""
     file_name = os.path.basename(file_path)
     mime_type = "application/pdf" if file_name.endswith(".pdf") else "text/html"
-    url = f"{CONFLUENCE_BASE}/rest/api/content/{page_id}/
+    url = f"{CONFLUENCE_BASE}/rest/api/content/{page_id}/child/attachment"
+    files = {"file": (file_name, open(file_path, "rb"), mime_type)}
+    res = requests.post(url, headers={"X-Atlassian-Token": "no-check"}, files=files, auth=auth)
+    if res.status_code not in [200, 204]:
+        print(f"⚠️ Failed to upload {file_name}: {res.status_code} - {res.text}")
+    else:
+        print(f"📎 Uploaded: {file_name}")
+
+
+def update_confluence_page(page_id, new_html):
+    """Update an existing Confluence page with new HTML"""
+    url = f"{CONFLUENCE_BASE}/rest/api/content/{page_id}/"
+    get_res = requests.get(url, auth=auth)
+    get_res.raise_for_status()
+    page_data = get_res.json()
+    current_version = page_data["version"]["number"]
+
+    payload = {
+        "id": page_id,
+        "type": "page",
+        "title": CONFLUENCE_TITLE,
+        "space": {"key": CONFLUENCE_SPACE},
+        "version": {"number": current_version + 1},
+        "body": {"storage": {"value": new_html, "representation": "storage"}},
+    }
+
+    res = requests.put(url, headers=headers, json=payload, auth=auth)
+    res.raise_for_status()
+    print(f"✅ Updated Confluence page (v{current_version + 1})")
+
+
+# ============================================================
+# 🚀 Main Logic
+# ============================================================
+if __name__ == "__main__":
+    version = read_version()
+    test_summary, test_status = extract_test_summary()
+    security_summary = extract_security_summary()
+
+    # Generate combined HTML report body
+    html_body = f"""
+    <h1>🧪 Automated Test & Security Report v{version}</h1>
+    <p><b>Date:</b> {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
+    <p><b>Test Summary:</b> {test_summary}</p>
+    <p><b>Risk Level:</b> {security_summary['Risk_Level']}</p>
+    <hr/>
+    <h2>🔍 Detailed Findings</h2>
+    <ul>
+        <li><b>SAST (Bandit):</b> {security_summary['SAST_Bandit']} findings</li>
+        <li><b>Dependency Scan (Safety):</b> {security_summary['Dependency_Safety']} findings</li>
+        <li><b>Container Scan (Trivy):</b> {security_summary['Container_Trivy']}</li>
+        <li><b>DAST (OWASP ZAP):</b> {security_summary['DAST_ZAP']}</li>
+    </ul>
+    <hr/>
+    <p>Generated automatically by Jenkins DevSecOps Pipeline.</p>
+    """
+
+    # Create or update Confluence page
+    try:
+        page_id = create_confluence_page(f"{CONFLUENCE_TITLE} v{version}", html_body)
+        print(f"📝 Created new Confluence page: {page_id}")
+    except requests.exceptions.HTTPError as e:
+        # If page already exists, find it and update
+        print("ℹ️ Page may already exist, attempting update...")
+        search_url = f"{CONFLUENCE_BASE}/rest/api/content?title={CONFLUENCE_TITLE}&spaceKey={CONFLUENCE_SPACE}"
+        res = requests.get(search_url, auth=auth)
+        if res.ok and res.json()["results"]:
+            page_id = res.json()["results"][0]["id"]
+            update_confluence_page(page_id, html_body)
+        else:
+            print("❌ Unable to find or update Confluence page:", e)
+
+    # Upload generated artifacts
+    for file in os.listdir(REPORT_DIR):
+        if file.endswith((".html", ".pdf")):
+            upload_attachment(page_id, os.path.join(REPORT_DIR, file))
+
+    print("✅ Report successfully published to Confluence.")
