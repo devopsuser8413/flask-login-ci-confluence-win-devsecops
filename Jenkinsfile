@@ -193,7 +193,7 @@ pipeline {
                 echo '🛡️ Scanning Docker image with Trivy...'
                 bat '''
                     if not exist report mkdir report
-                    trivy image --exit-code 0 --severity HIGH,CRITICAL --format html --output report\\trivy_report.html %DOCKER_IMAGE%
+                    "C:\\tools\\trivy\\trivy.exe" image --exit-code 0 --severity HIGH,CRITICAL --format html --output report\\trivy_report.html %DOCKER_IMAGE%
                 '''
                 echo '✅ Container vulnerability scan completed.'
             }
