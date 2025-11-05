@@ -30,10 +30,10 @@ pipeline {
         VENV_PATH     = '.venv'
         DOCKER_IMAGE  = 'devsecops-demo:latest'
 
-        PYTHONUTF8                  = '1'
-        PYTHONIOENCODING            = 'utf-8'
-        PYTHONLEGACYWINDOWSSTDIO    = '1'
-        PIP_CACHE_DIR               = "${WORKSPACE}\\pip_cache"
+        PYTHONUTF8               = '1'
+        PYTHONIOENCODING         = 'utf-8'
+        PYTHONLEGACYWINDOWSSTDIO = '1'
+        PIP_CACHE_DIR            = "${WORKSPACE}\\pip_cache"
     }
 
     // -------------------------------
@@ -67,21 +67,19 @@ pipeline {
             }
         }
 
-        stages {
-            stage('Setup Python Environment') {
-                steps {
-                    echo '🐍 Setting up cached Python environment...'
-                    bat '''
-                        @echo off
-                        if not exist "%PIP_CACHE_DIR%" mkdir "%PIP_CACHE_DIR%"
-                        if not exist "%VENV_PATH%" (
-                            python -m venv %VENV_PATH%
-                        )
-                        %VENV_PATH%\\Scripts\\python.exe -m pip install --upgrade pip
-                        %VENV_PATH%\\Scripts\\pip.exe install --cache-dir "%PIP_CACHE_DIR%" -r requirements.txt
-                        %VENV_PATH%\\Scripts\\pip.exe install --cache-dir "%PIP_CACHE_DIR%" bandit safety typer click pytest pytest-html fpdf beautifulsoup4 requests
-                    '''
-                }
+        stage('Setup Python Environment') {
+            steps {
+                echo '🐍 Setting up cached Python environment...'
+                bat '''
+                    @echo off
+                    if not exist "%PIP_CACHE_DIR%" mkdir "%PIP_CACHE_DIR%"
+                    if not exist "%VENV_PATH%" (
+                        python -m venv %VENV_PATH%
+                    )
+                    %VENV_PATH%\\Scripts\\python.exe -m pip install --upgrade pip
+                    %VENV_PATH%\\Scripts\\pip.exe install --cache-dir "%PIP_CACHE_DIR%" -r requirements.txt
+                    %VENV_PATH%\\Scripts\\pip.exe install --cache-dir "%PIP_CACHE_DIR%" bandit safety typer click pytest pytest-html fpdf beautifulsoup4 requests
+                '''
             }
         }
 
@@ -103,7 +101,7 @@ pipeline {
         }
 
         stage('Dependency Vulnerability Scan') {
-          steps {
+            steps {
                 echo "🧩 Checking dependencies for known vulnerabilities..."
                 bat '''
                     if not exist report mkdir report
@@ -119,7 +117,7 @@ pipeline {
         }
 
         stage('Run Unit Tests') {
-          steps {
+            steps {
                 echo '🧪 Running unit tests with pytest...'
                 bat """
                     @echo off
@@ -172,14 +170,14 @@ pipeline {
             steps {
                 echo '🛡️ Scanning Docker image with Trivy...'
                 bat '''
-                if not exist report mkdir report
-                "C:\\tools\\trivy\\trivy.exe" image --exit-code 0 --severity HIGH,CRITICAL --format table --output report\\trivy_report.txt %DOCKER_IMAGE%
+                    if not exist report mkdir report
+                    "C:\\tools\\trivy\\trivy.exe" image --exit-code 0 --severity HIGH,CRITICAL --format table --output report\\trivy_report.txt %DOCKER_IMAGE%
                 '''
                 echo '✅ Container vulnerability scan completed.'
             }
             post {
                 always {
-                archiveArtifacts artifacts: 'report/trivy_report.txt', fingerprint: true
+                    archiveArtifacts artifacts: 'report/trivy_report.txt', fingerprint: true
                 }
             }
         }
@@ -188,19 +186,12 @@ pipeline {
             steps {
                 echo '🚀 Deploying temporary container for OWASP ZAP DAST...'
                 bat '''
-                @echo off
-                REM 🧹 Cleanup previous containers/network
-                docker rm -f flask_dast_test >nul 2>&1
-                docker network rm zapnet >nul 2>&1
-
-                REM 🌐 Create shared Docker network
-                docker network create zapnet
-
-                REM 🚀 Start the Flask container on this network
-                docker run -d --network zapnet -p 5000:5000 --name flask_dast_test %DOCKER_IMAGE%
-
-                REM ⏱️ Wait 15 seconds for app to initialize
-                ping -n 16 127.0.0.1 >nul
+                    @echo off
+                    docker rm -f flask_dast_test >nul 2>&1
+                    docker network rm zapnet >nul 2>&1
+                    docker network create zapnet
+                    docker run -d --network zapnet -p 5000:5000 --name flask_dast_test %DOCKER_IMAGE%
+                    ping -n 16 127.0.0.1 >nul
                 '''
             }
         }
@@ -209,34 +200,32 @@ pipeline {
             steps {
                 echo '🕵️ Running OWASP ZAP baseline scan...'
                 bat '''
-                @echo off
-                if not exist report mkdir report
-
-                REM 🧠 Run OWASP ZAP in same network as Flask app
-                docker run --rm ^
-                    --network zapnet ^
-                    -v "%CD%\\report:/zap/wrk" ^
-                    ghcr.io/zaproxy/zaproxy:stable zap-baseline.py ^
-                    -t http://flask_dast_test:5000 ^
-                    -r zap_dast_report.html || exit /b 0
+                    @echo off
+                    if not exist report mkdir report
+                    docker run --rm ^
+                        --network zapnet ^
+                        -v "%CD%\\report:/zap/wrk" ^
+                        ghcr.io/zaproxy/zaproxy:stable zap-baseline.py ^
+                        -t http://flask_dast_test:5000 ^
+                        -r zap_dast_report.html || exit /b 0
                 '''
                 echo '✅ OWASP ZAP DAST scan completed.'
             }
             post {
                 always {
-                echo '📦 Archiving ZAP DAST report...'
-                archiveArtifacts artifacts: 'report/zap_dast_report.html', allowEmptyArchive: true
-                echo '🧹 Cleaning up...'
-                bat '''
-                    docker rm -f flask_dast_test >nul 2>&1
-                    docker network rm zapnet >nul 2>&1
-                '''
+                    echo '📦 Archiving ZAP DAST report...'
+                    archiveArtifacts artifacts: 'report/zap_dast_report.html', allowEmptyArchive: true
+                    echo '🧹 Cleaning up...'
+                    bat '''
+                        docker rm -f flask_dast_test >nul 2>&1
+                        docker network rm zapnet >nul 2>&1
+                    '''
                 }
             }
         }
 
         stage('Generate & Publish Reports') {
-           steps {
+            steps {
                 echo '📊 Generating and publishing reports to Confluence...'
                 bat '''
                     %VENV_PATH%\\Scripts\\python.exe generate_report.py
@@ -254,7 +243,7 @@ pipeline {
         }
 
         stage('Send Email Notification') {
-          steps {
+            steps {
                 echo '📧 Sending consolidated DevSecOps report...'
                 bat '''
                     %VENV_PATH%\\Scripts\\python.exe send_report_email.py
