@@ -108,20 +108,21 @@ pipeline {
 
         // -------------------------------
         stage('Dependency Vulnerability Scan') {
-            steps {
-                echo '🧩 Checking dependencies for known vulnerabilities...'
-                bat """
-                    @echo off
-                    %VENV_PATH%\\Scripts\\safety.exe check --full-report --output report\\dependency_vuln.txt || exit /b 0
-                """
-                echo '✅ Dependency vulnerability scan completed.'
-            }
-            post {
-                always {
-                    archiveArtifacts artifacts: 'report/dependency_vuln.txt', fingerprint: true
-                }
+        steps {
+            echo "🧩 Checking dependencies for known vulnerabilities..."
+            bat '''
+            if not exist report mkdir report
+            %VENV_PATH%\\Scripts\\pip.exe install --upgrade typer==0.9.0 safety==3.2.0
+            %VENV_PATH%\\Scripts\\python.exe -m safety check --full-report > report\\dependency_vuln.txt || exit 0
+            '''
+        }
+        post {
+            always {
+            archiveArtifacts artifacts: 'report/dependency_vuln.txt', allowEmptyArchive: true
             }
         }
+        }
+
 
         // -------------------------------
         stage('Run Unit Tests') {
