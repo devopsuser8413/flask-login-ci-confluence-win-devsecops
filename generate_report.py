@@ -6,7 +6,6 @@ from bs4 import BeautifulSoup
 from fpdf import FPDF
 from fpdf.html import HTMLMixin
 
-
 # ============================================================
 # 📦 Configuration
 # ============================================================
@@ -15,12 +14,10 @@ REPORT_DIR.mkdir(exist_ok=True)
 VERSION_FILE = REPORT_DIR / "version.txt"
 BASE_NAME = "test_result_report"
 
-
 # ============================================================
 # 🧩 Helper Functions
 # ============================================================
 def read_version():
-    """Read or initialize version counter"""
     if VERSION_FILE.exists():
         with open(VERSION_FILE) as f:
             try:
@@ -29,27 +26,20 @@ def read_version():
                 return 1
     return 1
 
-
 def increment_version():
-    """Increment and persist report version"""
     version = read_version() + 1
     with open(VERSION_FILE, "w") as f:
         f.write(str(version))
     return version
 
-
 def safe_read(file_path):
-    """Read file safely with UTF-8 fallback"""
     if os.path.exists(file_path):
         with open(file_path, encoding="utf-8", errors="ignore") as f:
             return f.read()
     return ""
 
-
 def extract_summary():
-    """Extract summary information from reports"""
     summary = {}
-
     pytest_log = safe_read(REPORT_DIR / "pytest_output.txt")
     if pytest_log:
         passed = re.findall(r"(\d+)\s+passed", pytest_log)
@@ -65,21 +55,16 @@ def extract_summary():
         summary["rate"] = round(rate, 1)
     else:
         summary.update({"passed": 0, "failed": 0, "errors": 0, "skipped": 0, "rate": 0})
-
-    # Security reports
     summary["bandit_findings"] = len(re.findall(r"<tr class=\"issue\">", safe_read(REPORT_DIR / "bandit_report.html")))
     summary["dep_vuln"] = len(re.findall(r"\|", safe_read(REPORT_DIR / "dependency_vuln.txt")))
     summary["trivy_high"] = len(re.findall(r"High", safe_read(REPORT_DIR / "trivy_report.txt")))
     summary["zap_high"] = len(re.findall(r"High", safe_read(REPORT_DIR / "zap_dast_report.html")))
-
     return summary
-
 
 # ============================================================
 # 🧠 HTML Report Generator
 # ============================================================
 def generate_html(summary, version):
-    """Generate HTML summary report"""
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     status = "PASS" if summary["failed"] == 0 and summary["errors"] == 0 else "FAIL"
     emoji = "✅" if status == "PASS" else "❌"
@@ -128,31 +113,33 @@ def generate_html(summary, version):
     </body>
     </html>
     """
-
     html_file = REPORT_DIR / f"{BASE_NAME}_v{version}.html"
     html_file.write_text(html, encoding="utf-8")
     return html_file
 
-
 # ============================================================
-# 🧾 PDF Report Generator (HTML Rendering - Unicode Safe)
+# 🧾 PDF Report Generator (HTML + Header/Footer)
 # ============================================================
 class PDF(FPDF, HTMLMixin):
-    pass
+    def header(self):
+        self.set_font("DejaVu", "", 10)
+        self.cell(0, 10, "Jenkins DevSecOps Automated Report", align="C", ln=True)
+        self.ln(5)
 
+    def footer(self):
+        self.set_y(-15)
+        self.set_font("DejaVu", "", 9)
+        self.cell(0, 10, f"Page {self.page_no()} / Generated {datetime.datetime.now():%Y-%m-%d %H:%M:%S}", align="C")
 
 def html_to_pdf(html_file, version):
-    """Convert HTML report to PDF using full HTML rendering (fpdf2 HTMLMixin)"""
     pdf = PDF()
     pdf.add_page()
     pdf.add_font("DejaVu", "", "DejaVuSans.ttf")
     pdf.set_font("DejaVu", "", 12)
-
-    html_content = html_file.read_text(encoding="utf-8")
-    pdf.write_html(html_content)
-
+    pdf.write_html(html_file.read_text(encoding="utf-8"))
     pdf_file = REPORT_DIR / f"{BASE_NAME}_v{version}.pdf"
     pdf.output(str(pdf_file))
+    print(f"✅ PDF generated: {pdf_file}")
     return pdf_file
 
 # ============================================================
@@ -163,7 +150,5 @@ if __name__ == "__main__":
     summary = extract_summary()
     html_file = generate_html(summary, version)
     pdf_file = html_to_pdf(html_file, version)
-
-    print(f"✅ HTML Report generated: {html_file}")
-    print(f"✅ PDF Report generated: {pdf_file}")
-    print(f"🆙 Version updated: {version}")
+    print(f"✅ HTML Report: {html_file}")
+    print(f"✅ PDF Report: {pdf_file}")
