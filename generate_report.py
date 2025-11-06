@@ -4,6 +4,8 @@ import datetime
 from pathlib import Path
 from bs4 import BeautifulSoup
 from fpdf import FPDF
+from fpdf.html import HTMLMixin
+
 
 # ============================================================
 # 📦 Configuration
@@ -133,37 +135,25 @@ def generate_html(summary, version):
 
 
 # ============================================================
-# 🧾 PDF Report Generator (Unicode-safe with fpdf2)
+# 🧾 PDF Report Generator (HTML Rendering - Unicode Safe)
 # ============================================================
-class PDF(FPDF):
-    def __init__(self):
-        super().__init__()
-        self.set_auto_page_break(auto=True, margin=15)
-        self.add_page()
-        # ✅ Add Unicode font (make sure DejaVuSans.ttf exists in repo)
-        self.add_font("DejaVu", "", "DejaVuSans.ttf", uni=True)
-        self.set_font("DejaVu", "", 12)
+class PDF(FPDF, HTMLMixin):
+    pass
 
 
 def html_to_pdf(html_file, version):
-    """Convert HTML report to a Unicode-safe PDF"""
+    """Convert HTML report to PDF using full HTML rendering (fpdf2 HTMLMixin)"""
     pdf = PDF()
-    soup = BeautifulSoup(html_file.read_text(encoding="utf-8"), "html.parser")
+    pdf.add_page()
+    pdf.add_font("DejaVu", "", "DejaVuSans.ttf")
+    pdf.set_font("DejaVu", "", 12)
 
-    # Header
-    pdf.cell(0, 10, f"🧪 Test & Security Report v{version}", ln=True, align="C")
-    pdf.ln(10)
-
-    # Extract plain readable text from HTML
-    for line in soup.get_text().splitlines():
-        line = line.strip()
-        if line:
-            pdf.multi_cell(0, 10, line)
+    html_content = html_file.read_text(encoding="utf-8")
+    pdf.write_html(html_content)
 
     pdf_file = REPORT_DIR / f"{BASE_NAME}_v{version}.pdf"
     pdf.output(str(pdf_file))
     return pdf_file
-
 
 # ============================================================
 # 🚀 Main
