@@ -1,144 +1,32 @@
 import os
 import smtplib
-import glob
+import mimetypes
+from email.message import EmailMessage
 from pathlib import Path
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.application import MIMEApplication
-from bs4 import BeautifulSoup
+from datetime import datetime
 
 # ============================================================
-# 📦 Configuration
+# ⚙️ Configuration (auto-read from Jenkins environment)
 # ============================================================
-REPORT_DIR = Path("report")
-
-SMTP_HOST   = os.getenv("SMTP_HOST")
-SMTP_PORT   = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USER   = os.getenv("SMTP_USER")
-SMTP_PASS   = os.getenv("SMTP_PASS")
+SMTP_HOST  = os.getenv("SMTP_HOST")
+SMTP_PORT  = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER  = os.getenv("SMTP_USER")
+SMTP_PASS  = os.getenv("SMTP_PASS")
 REPORT_FROM = os.getenv("REPORT_FROM")
 REPORT_TO   = os.getenv("REPORT_TO")
+
+CONFLUENCE_BASE  = os.getenv("CONFLUENCE_BASE")
+CONFLUENCE_SPACE = os.getenv("CONFLUENCE_SPACE", "DEMO")
+CONFLUENCE_TITLE = os.getenv("CONFLUENCE_TITLE", "DevSecOps Test Result Report")
+
+REPORT_DIR = Path("report")
 
 # ============================================================
 # 🧩 Helper Functions
 # ============================================================
-def safe_read(file_path):
-    """Safely read a file (UTF-8 fallback)."""
-    if os.path.exists(file_path):
-        with open(file_path, encoding="utf-8", errors="ignore") as f:
-            return f.read()
-    return ""
-
-def extract_summary():
-    """Extract test and security summary for email body."""
-    pytest_output = safe_read(REPORT_DIR / "pytest_output.txt")
-
-    passed = failed = errors = skipped = 0
-    if pytest_output:
-        import re
-        passed = int(re.findall(r"(\d+)\s+passed", pytest_output)[0]) if "passed" in pytest_output else 0
-        failed = int(re.findall(r"(\d+)\s+failed", pytest_output)[0]) if "failed" in pytest_output else 0
-        errors = int(re.findall(r"(\d+)\s+error", pytest_output)[0]) if "error" in pytest_output else 0
-        skipped = int(re.findall(r"(\d+)\s+skipped", pytest_output)[0]) if "skipped" in pytest_output else 0
-
-    total = passed + failed + errors + skipped
-    rate = round((passed / total) * 100, 1) if total else 0.0
-
-    bandit_count = safe_read(REPORT_DIR / "bandit_report.html").count("<tr class=\"issue\">")
-    dep_vuln_count = safe_read(REPORT_DIR / "dependency_vuln.txt").count("|")
-    trivy_high = safe_read(REPORT_DIR / "trivy_report.txt").count("High")
-    zap_high = safe_read(REPORT_DIR / "zap_dast_report.html").count("High")
-
-    return {
-        "passed": passed,
-        "failed": failed,
-        "errors": errors,
-        "skipped": skipped,
-        "rate": rate,
-        "bandit": bandit_count,
-        "dep_vuln": dep_vuln_count,
-        "trivy_high": trivy_high,
-        "zap_high": zap_high
-    }
-
-# ============================================================
-# 🧠 Build Email Body
-# ============================================================
-def build_email_body(summary):
-    """Generate HTML body for email."""
-    color = "#28a745" if summary["failed"] == 0 and summary["errors"] == 0 else "#dc3545"
-    status = "PASS ✅" if summary["failed"] == 0 and summary["errors"] == 0 else "FAIL ❌"
-
-    html_body = f"""
-    <html>
-    <head>
-      <style>
-        body {{ font-family: Arial, sans-serif; color: #333; }}
-        h2 {{ color: #007bff; }}
-        table {{
-            border-collapse: collapse;
-            width: 100%;
-            margin: 20px 0;
-        }}
-        th, td {{
-            border: 1px solid #ddd;
-            padding: 8px;
-        }}
-        th {{
-            background-color: #f8f9fa;
-        }}
-      </style>
-    </head>
-    <body>
-      <h2>📊 Jenkins DevSecOps Automated Test & Security Summary</h2>
-      <p><b>Status:</b> <span style="color:{color};">{status}</span></p>
-
-      <table>
-        <tr><th colspan="2">🧪 Test Summary</th></tr>
-        <tr><td>Passed</td><td>{summary["passed"]}</td></tr>
-        <tr><td>Failed</td><td>{summary["failed"]}</td></tr>
-        <tr><td>Errors</td><td>{summary["errors"]}</td></tr>
-        <tr><td>Skipped</td><td>{summary["skipped"]}</td></tr>
-        <tr><td>Pass Rate</td><td>{summary["rate"]}%</td></tr>
-      </table>
-
-      <table>
-        <tr><th colspan="2">🔐 Security Summary</th></tr>
-        <tr><td>SAST (Bandit)</td><td>{summary["bandit"]} issues</td></tr>
-        <tr><td>Dependency Vulnerabilities</td><td>{summary["dep_vuln"]} issues</td></tr>
-        <tr><td>Container Scan (Trivy)</td><td>{summary["trivy_high"]} High</td></tr>
-        <tr><td>DAST (OWASP ZAP)</td><td>{summary["zap_high"]} High</td></tr>
-      </table>
-
-      <p>🧾 Attached are all the detailed reports for your review:</p>
-      <ul>
-        <li>✅ test_result_report_v*.html / .pdf</li>
-        <li>🔍 bandit_report.html</li>
-        <li>🧩 dependency_vuln.txt</li>
-        <li>🛡️ trivy_report.txt</li>
-        <li>🕵️ zap_dast_report.html</li>
-      </ul>
-
-      <p><i>Generated automatically by Jenkins DevSecOps Pipeline</i></p>
-    </body>
-    </html>
-    """
-    return html_body
-
-# ============================================================
-# ✉️ Send Email
-# ============================================================
-def send_email():
-    summary = extract_summary()
-    msg = MIMEMultipart()
-    msg["From"] = REPORT_FROM
-    msg["To"] = REPORT_TO
-    msg["Subject"] = "🔔 Jenkins DevSecOps Test & Security Report"
-
-    msg.attach(MIMEText(build_email_body(summary), "html"))
-
-    # Attach all relevant files
-    attachments = [
+def get_report_files():
+    """Return list of report files to attach in email."""
+    patterns = [
         "bandit_report.html",
         "dependency_vuln.txt",
         "report.html",
@@ -146,31 +34,98 @@ def send_email():
         "test_result_report_v*.pdf",
         "trivy_report.txt",
         "version.txt",
-        "zap_dast_report.html"
+        "zap_dast_report.html",
     ]
+    files = []
+    for pattern in patterns:
+        for f in REPORT_DIR.glob(pattern):
+            if f.is_file():
+                files.append(f)
+    return files
 
-    attached_count = 0
-    for pattern in attachments:
-        for file_path in glob.glob(str(REPORT_DIR / pattern)):
-            with open(file_path, "rb") as f:
-                part = MIMEApplication(f.read(), Name=os.path.basename(file_path))
-                part["Content-Disposition"] = f'attachment; filename="{os.path.basename(file_path)}"'
-                msg.attach(part)
-                attached_count += 1
 
-    print(f"📎 Attached {attached_count} report files to email.")
+def detect_version():
+    vf = REPORT_DIR / "version.txt"
+    return vf.read_text().strip() if vf.exists() else "N/A"
+
+
+def detect_status():
+    """Infer PASS/FAIL status from pytest output."""
+    po = REPORT_DIR / "pytest_output.txt"
+    if po.exists():
+        content = po.read_text(encoding="utf-8", errors="ignore").lower()
+        if "failed" in content:
+            return "FAIL"
+        return "PASS"
+    return "UNKNOWN"
+
+
+# ============================================================
+# ✉️ Email Message Builder
+# ============================================================
+def build_email_body(version, status, report_links):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conf_page_url = f"{CONFLUENCE_BASE}/wiki/spaces/{CONFLUENCE_SPACE}/pages"
+    return f"""
+    <html>
+    <body style="font-family: Arial, sans-serif;">
+      <h2>DevSecOps Test & Security Report v{version} ({status})</h2>
+      <p><b>Generated:</b> {timestamp}</p>
+      <p>The latest test and security reports from Jenkins are attached.</p>
+      <p>📎 <b>Attached files:</b></p>
+      <ul>
+        {''.join(f'<li>{Path(f).name}</li>' for f in report_links)}
+      </ul>
+      <p>🔗 <b>Confluence Page:</b> 
+        <a href="{conf_page_url}" target="_blank">{CONFLUENCE_TITLE}</a>
+      </p>
+      <p><i>This email was sent automatically by Jenkins DevSecOps Pipeline.</i></p>
+    </body>
+    </html>
+    """
+
+
+# ============================================================
+# 🚀 Main Logic
+# ============================================================
+if __name__ == "__main__":
+    version = detect_version()
+    status = detect_status()
+    files_to_attach = get_report_files()
+
+    if not files_to_attach:
+        print("❌ No report files found to attach. Check the 'report' directory.")
+        exit(1)
+
+    msg = EmailMessage()
+    msg["From"] = REPORT_FROM
+    msg["To"] = REPORT_TO
+    msg["Subject"] = f"📊 DevSecOps Test & Security Report v{version} ({status})"
+
+    html_body = build_email_body(version, status, files_to_attach)
+    msg.add_alternative(html_body, subtype="html")
+
+    # Attach each file
+    for file_path in files_to_attach:
+        mime_type, _ = mimetypes.guess_type(file_path)
+        mime_type = mime_type or "application/octet-stream"
+        main_type, sub_type = mime_type.split("/", 1)
+        with open(file_path, "rb") as f:
+            msg.add_attachment(
+                f.read(),
+                maintype=main_type,
+                subtype=sub_type,
+                filename=Path(file_path).name
+            )
+        print(f"📎 Attached: {Path(file_path).name}")
+
+    print(f"📤 Sending report email to: {REPORT_TO} via {SMTP_HOST}:{SMTP_PORT}")
 
     try:
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
             server.starttls()
             server.login(SMTP_USER, SMTP_PASS)
             server.send_message(msg)
-        print("✅ Email sent successfully!")
+        print("✅ Email sent successfully with all report attachments.")
     except Exception as e:
         print(f"❌ Failed to send email: {e}")
-
-# ============================================================
-# 🚀 Main
-# ============================================================
-if __name__ == "__main__":
-    send_email()

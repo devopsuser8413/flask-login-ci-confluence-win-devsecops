@@ -241,12 +241,14 @@ pipeline {
 
         stage('Send Email Notification') {
             steps {
-                echo '📧 Sending email with all reports attached...'
+                echo '📧 Sending consolidated DevSecOps report...'
                 bat '''
                     %VENV_PATH%\\Scripts\\python.exe send_report_email.py
                 '''
+                echo '✅ Email with consolidated report sent.'
             }
         }
+
     }
 
     post {
