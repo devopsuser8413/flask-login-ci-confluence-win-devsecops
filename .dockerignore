@@ -5,7 +5,6 @@ __pycache__
 
 # Ignore logs, test results, and reports
 *.log
-*.txt
 *.html
 *.pdf
 report/
