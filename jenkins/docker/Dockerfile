@@ -1,44 +1,69 @@
 # ================================================
-# 🐋 Secure Flask Application - Root-level Dockerfile
+# 🐋 Secure Flask Application - Jenkins-based Dockerfile
+# Location: jenkins/docker/Dockerfile
 # ================================================
+
+# Base Python image (lightweight & stable)
 FROM python:3.11-slim AS base
 
-# Set working directory inside container
-WORKDIR /app
+# --------------------------------
+# 🧩 Environment Setup
+# --------------------------------
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    APP_HOME=/app
 
-# Prevent Python from writing .pyc files and buffering stdout/stderr
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+WORKDIR $APP_HOME
 
-# Install essential tools (curl used in HEALTHCHECK)
-RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+# --------------------------------
+# 🧰 System Dependencies
+# --------------------------------
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        curl \
+        build-essential && \
+    rm -rf /var/lib/apt/lists/*
 
-# Copy requirements.txt from root
-COPY requirements.txt .
+# --------------------------------
+# 📦 Install Python Dependencies
+# --------------------------------
+# Copy requirements from /jenkins/scripts/
+COPY ../../jenkins/scripts/requirements.txt .
 
-# Install dependencies securely
+# Upgrade pip & install dependencies securely
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy entire Flask app folder into container
-COPY app/ /app/
+# --------------------------------
+# 📁 Copy Flask Application Code
+# --------------------------------
+COPY ../../app/ $APP_HOME/
 
-# Expose Flask default port
-EXPOSE 5000
-
-# Create non-root user for better security
+# --------------------------------
+# 👤 Security Hardening
+# --------------------------------
 RUN useradd -m flaskuser
 USER flaskuser
 
-# Default Flask environment
-ENV FLASK_APP=app.py
-ENV FLASK_RUN_HOST=0.0.0.0
-ENV FLASK_ENV=production
-ENV FLASK_DEBUG=False
+# --------------------------------
+# ⚙️ Flask Runtime Configuration
+# --------------------------------
+ENV FLASK_APP=app.py \
+    FLASK_RUN_HOST=0.0.0.0 \
+    FLASK_ENV=production \
+    FLASK_DEBUG=False
 
-# Healthcheck for CI/CD
+# Flask default port
+EXPOSE 5000
+
+# --------------------------------
+# 🩺 Healthcheck (used in CI/CD)
+# --------------------------------
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD curl --fail http://localhost:5000/health || exit 1
 
-# Run Flask app
+# --------------------------------
+# 🚀 Run Flask Application
+# --------------------------------
 CMD ["python", "app.py"]

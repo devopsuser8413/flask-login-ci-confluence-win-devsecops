@@ -53,7 +53,7 @@ pipeline {
     stages {
 
         // -----------------------------
-        stage('🔧 Setup UTF-8 Encoding') {
+        stage('Setup UTF-8 Encoding') {
             steps {
                 bat '''
                     chcp 65001 >nul
@@ -63,7 +63,7 @@ pipeline {
         }
 
         // -----------------------------
-        stage('📦 Checkout Repository') {
+        stage('Checkout Repository') {
             steps {
                 echo 'Fetching latest source from GitHub...'
                 checkout([
@@ -79,7 +79,7 @@ pipeline {
         }
 
         // -----------------------------
-        stage('🐍 Setup Python Virtual Environment') {
+        stage('Setup Python Virtual Environment') {
             steps {
                 echo 'Preparing Python environment...'
                 bat '''
@@ -95,7 +95,7 @@ pipeline {
         }
 
         // -----------------------------
-        stage('🛡️ SAST - Bandit Security Scan') {
+        stage('SAST - Bandit Security Scan') {
             steps {
                 echo 'Running Bandit static code analysis...'
                 bat '''
@@ -111,7 +111,7 @@ pipeline {
         }
 
         // -----------------------------
-        stage('🧩 Dependency Vulnerability Scan') {
+        stage('Dependency Vulnerability Scan') {
             steps {
                 echo 'Scanning dependencies for vulnerabilities...'
                 bat '''
@@ -127,7 +127,7 @@ pipeline {
         }
 
         // -----------------------------
-        stage('🧪 Run Unit Tests (Pytest)') {
+        stage('Run Unit Tests (Pytest)') {
             steps {
                 echo 'Executing Pytest suite...'
                 bat '''
@@ -142,24 +142,35 @@ pipeline {
             }
         }
 
-        // -----------------------------
-        stage('🐳 Build Docker Image') {
+        stage('Build Docker Image') {
             steps {
-                echo 'Building Docker image...'
-                bat '''
-                    if exist Dockerfile (
-                        docker build -t %DOCKER_IMAGE% -f Dockerfile .
-                    ) else (
-                        echo ❌ ERROR: Dockerfile not found!
-                        exit /b 1
-                    )
-                '''
+                echo '🔧 Building Docker image...'
+                script {
+                    // Try multiple common Dockerfile paths
+                    def dockerFilePaths = [
+                        'Dockerfile',
+                        'jenkins/docker/Dockerfile',
+                        'app/Dockerfile',
+                        'src/Dockerfile'
+                    ]
+
+                    def foundDockerfile = dockerFilePaths.find { fileExists(it) }
+
+                    if (!foundDockerfile) {
+                        error "❌ ERROR: No Dockerfile found in expected paths: ${dockerFilePaths.join(', ')}"
+                    }
+
+                    echo "✅ Found Dockerfile at: ${foundDockerfile}"
+                    bat """
+                        docker build -t devsecops-demo:latest -f "${foundDockerfile}" .
+                    """
+                }
                 echo '✅ Docker image built successfully.'
             }
         }
 
         // -----------------------------
-        stage('🛡️ Container Scan (Trivy)') {
+        stage('Container Scan (Trivy)') {
             steps {
                 echo 'Performing Trivy image scan...'
                 bat '''
@@ -175,7 +186,7 @@ pipeline {
         }
 
         // -----------------------------
-        stage('🕵️ DAST - OWASP ZAP Baseline Scan') {
+        stage('DAST - OWASP ZAP Baseline Scan') {
             steps {
                 echo 'Running OWASP ZAP DAST scan...'
                 bat '''
@@ -198,7 +209,7 @@ pipeline {
         }
 
         // -----------------------------
-        stage('📊 Generate & Publish Reports to Confluence') {
+        stage('Generate & Publish Reports to Confluence') {
             steps {
                 echo 'Generating DevSecOps reports and publishing to Confluence...'
                 bat '''
@@ -217,7 +228,7 @@ pipeline {
         }
 
         // -----------------------------
-        stage('🔗 Resolve Confluence Link & Send Email') {
+        stage('Resolve Confluence Link & Send Email') {
             steps {
                 echo 'Fetching latest Confluence page link and sending email...'
                 bat '''
