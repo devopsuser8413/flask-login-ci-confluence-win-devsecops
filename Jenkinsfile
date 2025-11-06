@@ -227,16 +227,30 @@ pipeline {
         stage('Generate & Publish Reports') {
             steps {
                 echo '📊 Generating and publishing reports to Confluence...'
-                bat '''
+
+                // -----------------------------------------------------
+                // 🧩 Install Required Python Dependencies
+                // -----------------------------------------------------
+                bat """
+                    echo Installing PDF and HTML dependencies...
+                    %VENV_PATH%\\Scripts\\python.exe -m pip install --upgrade fpdf2 beautifulsoup4 requests
+                """
+                // -----------------------------------------------------
+                // 🧾 Generate and Publish Reports
+                // -----------------------------------------------------
+                bat """
                     %VENV_PATH%\\Scripts\\python.exe generate_report.py
                     %VENV_PATH%\\Scripts\\python.exe publish_report_confluence.py
-                '''
+                """
+
                 echo '✅ Reports generated and published to Confluence.'
             }
+
             post {
                 always {
+                    echo '📦 Archiving generated artifacts...'
                     archiveArtifacts artifacts: 'report/test_result_report_v*.html', fingerprint: true
-                    archiveArtifacts artifacts: 'report/test_result_report_v*.pdf', fingerprint: true
+                    archiveArtifacts artifacts: 'report/test_result_report_v*.pdf', fingerprint: true, allowEmptyArchive: true
                     archiveArtifacts artifacts: 'report/version.txt', fingerprint: true
                 }
             }

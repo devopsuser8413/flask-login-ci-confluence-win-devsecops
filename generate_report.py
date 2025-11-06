@@ -133,17 +133,33 @@ def generate_html(summary, version):
 
 
 # ============================================================
-# 🧾 PDF Report Generator
+# 🧾 PDF Report Generator (Unicode-safe with fpdf2)
 # ============================================================
+class PDF(FPDF):
+    def __init__(self):
+        super().__init__()
+        self.set_auto_page_break(auto=True, margin=15)
+        self.add_page()
+        # ✅ Add Unicode font (make sure DejaVuSans.ttf exists in repo)
+        self.add_font("DejaVu", "", "DejaVuSans.ttf", uni=True)
+        self.set_font("DejaVu", "", 12)
+
+
 def html_to_pdf(html_file, version):
-    """Convert HTML report to PDF"""
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=12)
+    """Convert HTML report to a Unicode-safe PDF"""
+    pdf = PDF()
     soup = BeautifulSoup(html_file.read_text(encoding="utf-8"), "html.parser")
 
+    # Header
+    pdf.cell(0, 10, f"🧪 Test & Security Report v{version}", ln=True, align="C")
+    pdf.ln(10)
+
+    # Extract plain readable text from HTML
     for line in soup.get_text().splitlines():
-        pdf.multi_cell(0, 10, line)
+        line = line.strip()
+        if line:
+            pdf.multi_cell(0, 10, line)
+
     pdf_file = REPORT_DIR / f"{BASE_NAME}_v{version}.pdf"
     pdf.output(str(pdf_file))
     return pdf_file
