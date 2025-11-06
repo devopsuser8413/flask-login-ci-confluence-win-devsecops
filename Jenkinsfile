@@ -239,17 +239,73 @@ pipeline {
             }
         }
 
-        stage('Send Email Notification') {
+        stage('Resolve Confluence Link & Send Email') {
             steps {
+                echo '🔗 Resolving latest Confluence report page link...'
+                script {
+                def confLink = bat(
+                    returnStdout: true,
+                    script: """
+                    @echo off
+                    %VENV_PATH%\\Scripts\\python.exe - <<PYCODE
+                    import os, re
+                    from pathlib import Path
+                    import requests
+                    from requests.auth import HTTPBasicAuth
+
+                    CONFLUENCE_BASE  = os.getenv("CONFLUENCE_BASE")
+                    CONFLUENCE_SPACE = os.getenv("CONFLUENCE_SPACE", "DEMO")
+                    CONFLUENCE_USER  = os.getenv("CONFLUENCE_USER")
+                    CONFLUENCE_TOKEN = os.getenv("CONFLUENCE_TOKEN")
+                    AUTH = HTTPBasicAuth(CONFLUENCE_USER, CONFLUENCE_TOKEN)
+
+                    report_dir = Path("report")
+                    ver = (report_dir / "version.txt").read_text().strip() if (report_dir / "version.txt").exists() else "N/A"
+
+                    po = (report_dir / "pytest_output.txt")
+                    status = "UNKNOWN"
+                    if po.exists():
+                        content = po.read_text(encoding="utf-8", errors="ignore").lower()
+                        status = "FAIL" if "failed" in content else "PASS"
+
+                    # Search the specific child page: Test Result Report v<ver> (<status>)
+                    search_url = f"{CONFLUENCE_BASE}/rest/api/content/search"
+                    cql = f'title ~ "Test Result Report v{ver} ({status})" and space="{CONFLUENCE_SPACE}"'
+                    r = requests.get(search_url, params={"cql": cql}, auth=AUTH)
+
+                    link = None
+                    if r.status_code == 200:
+                        data = r.json()
+                        if data.get("results"):
+                            page = data["results"][0]
+                            page_id = page["id"]
+                            title = page["title"]
+                            link = f"{CONFLUENCE_BASE}/pages/{page_id}/{title.replace(' ', '+')}"
+
+                    # Fallback: space index if not found
+                    if not link:
+                        link = f"{CONFLUENCE_BASE}/wiki/spaces/{CONFLUENCE_SPACE}/pages"
+
+                    print(link)
+                    PYCODE
+                    """
+                ).trim()
+
+                echo "🔗 Confluence page: ${confLink}"
+                env.CONFLUENCE_LINK = confLink
+                // Optional: also pass a dynamic email subject downstream if you like
+                // env.EMAIL_SUBJECT = "📊 DevSecOps Test & Security Report v${readFile('report/version.txt').trim()} (${currentBuild.currentResult})"
+                }
+
                 echo '📧 Sending consolidated DevSecOps report...'
-                bat '''
-                    %VENV_PATH%\\Scripts\\python.exe send_report_email.py
-                '''
+                bat """
+                @echo on
+                set CONFLUENCE_LINK=%CONFLUENCE_LINK%
+                %VENV_PATH%\\Scripts\\python.exe send_report_email.py
+                """
                 echo '✅ Email with consolidated report sent.'
             }
         }
-
-    }
 
     post {
         success {
