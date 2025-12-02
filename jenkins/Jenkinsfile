@@ -243,30 +243,29 @@ pipeline {
     // 🧹 Post-Build Actions
     // ============================================================
     post {
-        success {
-            echo '''
-            ✅ PIPELINE SUCCESS
-            ===========================================
-            ✔️ Code Scanned (Bandit, Safety)
-            ✔️ Containers Verified (Trivy, ZAP)
-            ✔️ Reports Published to Confluence
-            ✔️ Notification Email Sent
-            ===========================================
-            '''
-        }
-        failure {
-            echo '''
-            ❌ PIPELINE FAILED
-            ===========================================
-            ⚠️ Review Jenkins logs for root cause.
-            ⚠️ Verify Docker & Python environments.
-            ⚠️ Check credentials or API tokens.
-            ===========================================
-            '''
-        }
+            success {
+                echo '''
+                ✅ PIPELINE SUCCESS
+                ===========================================
+                ✔️ Code Scanned (Bandit, Safety)
+                ✔️ Containers Verified (Trivy, ZAP)
+                ✔️ Reports Published to Confluence
+                ✔️ Notification Email Sent
+                ===========================================
+                '''
+            }
+            failure {
+                echo '''
+                ❌ PIPELINE FAILED
+                ===========================================
+                ⚠️ Review Jenkins logs for root cause.
+                ⚠️ Verify Docker & Python environments.
+                ⚠️ Check credentials or API tokens.
+                ===========================================
+                '''
+            }
         always {
-            echo '🧹 Cleaning up Jenkins workspace...'
-            cleanWs()
+            echo '🧹 Skipping workspace cleanup (cleanWs removed).'
         }
     }
 }
