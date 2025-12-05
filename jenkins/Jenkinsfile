@@ -208,7 +208,7 @@ pipeline {
             }
         }
 
-        // -----------------------------
+        // --------------------------------------------------
         stage('Generate & Publish Reports to Confluence') {
             steps {
                 echo 'Generating DevSecOps reports and publishing to Confluence...'
